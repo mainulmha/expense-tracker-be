@@ -5,25 +5,39 @@ const connectDB = require("./config/db");
 const expenseRoutes = require("./routes/expenseRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const authRoutes = require("./routes/authRoutes");
+const passport = require("./config/passport");
+const session = require("express-session");
 
 // Load environment variables
 dotenv.config();
-
-// Connect to database
-// connectDB();
 
 const app = express();
 
 // Middleware
 app.use(
   cors({
-    origin: ["https://myexpns.netlify.app", "http://192.168.0.159:5173/"],
+    origin: [
+      "https://myexpns.netlify.app",
+      "http://192.168.0.159:5173",
+      "http://localhost:5173",
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  session({
+    secret: process.env.JWT_SECRET,
+    resave: false,
+    saveUninitialized: false,
+  }),
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Request logging middleware
 app.use((req, res, next) => {

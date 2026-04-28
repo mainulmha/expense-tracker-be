@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const passport = require("passport");
 
 const {
   hashPassword,
@@ -13,12 +14,11 @@ const {
   sendOTPEmail,
 } = require("../services/emailService");
 
-// @desc
-// Register User (with email verification)
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Basic validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -27,20 +27,54 @@ exports.register = async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
+
+    // 🔥 CASE 1: User already exists
     if (existingUser) {
+      // 👉 যদি Google user হয়
+      if (existingUser.provider === "google") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This email is registered with Google. Please login with Google or set a password.",
+        });
+      }
+
+      // 👉 যদি local user কিন্তু verify না করা
+      if (!existingUser.isVerified) {
+        // নতুন token generate করে resend করা যাবে
+        const verificationToken = crypto.randomBytes(32).toString("hex");
+        const verificationTokenExpires = new Date(Date.now() + 60 * 1000);
+
+        existingUser.verificationToken = verificationToken;
+        existingUser.verificationTokenExpires = verificationTokenExpires;
+
+        await existingUser.save();
+
+        await sendVerificationEmail(
+          existingUser.email,
+          existingUser.name,
+          verificationToken,
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: "Verification email resent. Please check your email.",
+        });
+      }
+
+      // 👉 already verified local user
       return res.status(400).json({
         success: false,
         message: "User already exists with this email",
       });
     }
 
-    // ✅ Hash password
+    // 🔐 Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Generate verification token
+    // 🔑 Verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    // const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    const verificationTokenExpires = new Date(Date.now() + 60 * 1000); // 1 minute
+    const verificationTokenExpires = new Date(Date.now() + 60 * 1000);
 
     const user = await User.create({
       name,
@@ -49,20 +83,12 @@ exports.register = async (req, res) => {
       verificationToken,
       verificationTokenExpires,
       isVerified: false,
+      provider: "local",
     });
 
-    // Send verification email
+    // 📧 Send verification email
     try {
-      const emailSent = await sendVerificationEmail(
-        email,
-        name,
-        verificationToken,
-      );
-      if (emailSent) {
-        console.log("✅ Verification email sent to:", email);
-      } else {
-        console.log("❌ Failed to send email to:", email);
-      }
+      await sendVerificationEmail(email, name, verificationToken);
     } catch (emailError) {
       console.error("Email sending error:", emailError.message);
     }
@@ -85,6 +111,79 @@ exports.register = async (req, res) => {
     });
   }
 };
+
+// @desc
+// Register User (with email verification)
+// exports.register = async (req, res) => {
+//   try {
+//     const { name, email, password } = req.body;
+
+//     if (!name || !email || !password) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Please provide all required fields",
+//       });
+//     }
+
+//     const existingUser = await User.findOne({ email });
+//     if (existingUser) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "User already exists with this email",
+//       });
+//     }
+
+//     // ✅ Hash password
+//     const hashedPassword = await hashPassword(password);
+
+//     // Generate verification token
+//     const verificationToken = crypto.randomBytes(32).toString("hex");
+//     // const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+//     const verificationTokenExpires = new Date(Date.now() + 60 * 1000); // 1 minute
+
+//     const user = await User.create({
+//       name,
+//       email,
+//       password: hashedPassword,
+//       verificationToken,
+//       verificationTokenExpires,
+//       isVerified: false,
+//     });
+
+//     // Send verification email
+//     try {
+//       const emailSent = await sendVerificationEmail(
+//         email,
+//         name,
+//         verificationToken,
+//       );
+//       if (emailSent) {
+//         console.log("✅ Verification email sent to:", email);
+//       } else {
+//         console.log("❌ Failed to send email to:", email);
+//       }
+//     } catch (emailError) {
+//       console.error("Email sending error:", emailError.message);
+//     }
+
+//     res.status(201).json({
+//       success: true,
+//       message:
+//         "User registered successfully! Please check your email to verify your account.",
+//       user: {
+//         id: user._id,
+//         name: user.name,
+//         email: user.email,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Register error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
 
 // @desc    Verify Email
 // @route   GET /api/auth/verify-email
@@ -144,6 +243,7 @@ exports.verifyEmail = async (req, res) => {
     });
   }
 };
+
 // @desc    Resend Verification Email
 // @route   POST /api/auth/resend-verification
 exports.resendVerification = async (req, res) => {
@@ -188,8 +288,6 @@ exports.resendVerification = async (req, res) => {
   }
 };
 
-// @desc    Login User
-// @route   POST /api/auth/login
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -202,6 +300,7 @@ exports.login = async (req, res) => {
     }
 
     const user = await User.findOne({ email });
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -209,6 +308,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // 🔥 OAuth user block
+    if (user.provider !== "local") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This account was created using Google. Please login with Google.",
+      });
+    }
+
+    // 🔐 Email verification check
     if (!user.isVerified) {
       return res.status(401).json({
         success: false,
@@ -219,6 +328,7 @@ exports.login = async (req, res) => {
 
     // ✅ Compare password
     const isPasswordValid = await comparePassword(password, user.password);
+
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -247,6 +357,65 @@ exports.login = async (req, res) => {
     });
   }
 };
+// @desc    Login User
+// @route   POST /api/auth/login
+// exports.login = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Please provide email and password",
+//       });
+//     }
+
+//     const user = await User.findOne({ email });
+//     if (!user) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid email or password",
+//       });
+//     }
+
+//     if (!user.isVerified) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Please verify your email before logging in",
+//         needsVerification: true,
+//       });
+//     }
+
+//     // ✅ Compare password
+//     const isPasswordValid = await comparePassword(password, user.password);
+//     if (!isPasswordValid) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid email or password",
+//       });
+//     }
+
+//     const token = generateToken(user._id);
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Login successful",
+//       token,
+//       user: {
+//         id: user._id,
+//         name: user.name,
+//         email: user.email,
+//         isVerified: user.isVerified,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Login error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
 
 // @desc    Update Profile
 // @route   PUT /api/auth/update-profile
@@ -518,4 +687,9 @@ exports.resetPassword = async (req, res) => {
       message: error.message,
     });
   }
+};
+
+// 1. Google Login
+exports.googleAuth = (req, res) => {
+  passport.authenticate("google", { scope: ["profile", "email"] })(req, res);
 };

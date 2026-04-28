@@ -15,7 +15,6 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, "Password is required"],
     minlength: 6,
   },
   isVerified: {
@@ -41,6 +40,22 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+
+  provider: {
+    type: String,
+    enum: ["local", "google"],
+    default: "local",
+  },
+
+  providerId: {
+    type: String,
+    default: null,
+  },
+
+  avatar: {
+    type: String,
+    default: null,
   },
 });
 
