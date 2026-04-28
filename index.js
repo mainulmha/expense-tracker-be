@@ -10,7 +10,7 @@ const authRoutes = require("./routes/authRoutes");
 dotenv.config();
 
 // Connect to database
-connectDB();
+// connectDB();
 
 const app = express();
 
@@ -25,17 +25,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// --- Routes ---
+app.get("/api/hello", (req, res) => {
+  res.json({
+    success: true,
+    message: "Hello! Welcome to my Node.js API",
+    data: {
+      status: "Active",
+      version: "1.0.0",
+    },
+  });
+});
+
 app.use("/api/expense", expenseRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/auth", authRoutes);
 
 // Health check route
 app.get("/api/health", (req, res) => {
-  res.status(200).json({
+  const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+  res.json({
     success: true,
-    message: "Server is running",
-    timestamp: new Date().toISOString(),
+    message: "Server is healthy",
+    requested_at: fullUrl,
+    timestamp: new Date(),
   });
 });
 
@@ -58,8 +71,16 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || "development";
+const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port : ${PORT}`);
-  console.log(`📡 API URL: http://localhost:${PORT}/api`);
+// Connect to database then start server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`---------------------------------------`);
+    console.log(`🚀 STATUS: Running in ${NODE_ENV} mode`);
+    console.log(`📡 URL   : ${BASE_URL}`);
+    console.log(`✅ MongoDB Connected Successfully`); // এখানেই লিখে দাও
+    console.log(`---------------------------------------`);
+  });
 });

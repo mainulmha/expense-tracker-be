@@ -1,9 +1,9 @@
+require("dotenv").config();
 const nodemailer = require("nodemailer");
 
-const EMAIL_USER = "info.spendly@gmail.com";
-const EMAIL_PASS = "dxwpguhuyjjawpho";
-const FRONTEND_URL = "http://192.168.0.159:5173";
-// const FRONTEND_URL = "http://localhost:5173";
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -32,11 +32,11 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
   const mailOptions = {
     from: `"Expense Tracker" <${EMAIL_USER}>`,
     to: email,
-    subject: "Verify Your Email Address - Expense Tracker",
+    subject: "Verify Your Email Address - My Expense",
     html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 20px; text-align: center;">
-                    <h1 style="color: white;">💰 Expense Tracker</h1>
+                    <h1 style="color: white;">💰 My Expense</h1>
                 </div>
                 <div style="padding: 20px; border: 1px solid #ddd;">
                     <h2>Hello ${name}!</h2>
@@ -67,9 +67,9 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
 
 const sendOTPEmail = async (email, name, otp) => {
   const mailOptions = {
-    from: `"Expense Tracker" <${process.env.EMAIL_USER}>`,
+    from: `"My Expense" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: "Password Reset OTP - Expense Tracker",
+    subject: "Password Reset OTP - My Expense",
     html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 20px; text-align: center;">
@@ -102,5 +102,4 @@ const sendOTPEmail = async (email, name, otp) => {
   }
 };
 
-// Export Function
 module.exports = { sendVerificationEmail, testConnection, sendOTPEmail };
