@@ -75,12 +75,12 @@ exports.addExpense = async (req, res) => {
     }
 
     // ✅ 5. Description validation
-    if (!description || description.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        message: "Description is required",
-      });
-    }
+    // if (!description || description.trim() === "") {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Description is required",
+    //   });
+    // }
 
     // ✅ 6. Category validation
     if (!category) {
@@ -116,14 +116,16 @@ exports.addExpense = async (req, res) => {
       category: category.toLowerCase().trim(),
       type: type.toLowerCase(),
       date: transactionDate,
-      userId: req.user._id, // 👈 ইউজার আইডি যোগ করুন
+      userId: req.user._id,
     });
 
     console.log("✅ Transaction created:", {
       id: newExpense._id,
       type: newExpense.type,
+      description: newExpense.description,
       category: newExpense.category,
       amount: newExpense.amount,
+      date: newExpense.date,
       userId: newExpense.userId,
     });
 
